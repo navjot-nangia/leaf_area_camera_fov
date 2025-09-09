@@ -1,32 +1,42 @@
 import cv2
 import numpy as np
 
-class LeafAnalyzer:
-    def __init__(self, threshold: int = 30):
+class LeafAnalyzerHSV:
+    def __init__(self, black_hsv_lower=(0, 0, 0), black_hsv_upper=(180, 255, 50)):
         """
-        Initialize analyzer with a grayscale threshold.
-        Pixels above this threshold are considered leaf.
+        Initialize analyzer using HSV ranges for black background.
+        All pixels NOT in this black range are considered leaf.
+        
+        Args:
+            black_hsv_lower (tuple): lower HSV bound for black background.
+            black_hsv_upper (tuple): upper HSV bound for black background.
         """
-        self.threshold = threshold
+        self.black_hsv_lower = np.array(black_hsv_lower)
+        self.black_hsv_upper = np.array(black_hsv_upper)
 
     def segment_leaf(self, image_path: str):
         """
-        Segment the leaf from a black background using threshold.
-        Returns the mask (boolean array) and original image.
+        Segment leaf using HSV black detection.
+        Returns mask (bool array) and original BGR image.
         """
         img = cv2.imread(image_path)
         if img is None:
             raise ValueError("Image not found or path is incorrect.")
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, mask = cv2.threshold(gray, self.threshold, 255, cv2.THRESH_BINARY)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # Morphology to remove small noise (optional)
-        kernel = np.ones((3, 3), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        # Mask for black background
+        black_mask = cv2.inRange(hsv, self.black_hsv_lower, self.black_hsv_upper)
 
-        return mask, img
+        # Leaf mask is inverse of black mask
+        leaf_mask = cv2.bitwise_not(black_mask)
+
+        # Morphology to remove small noise
+        kernel = np.ones((3,3), np.uint8)
+        leaf_mask = cv2.morphologyEx(leaf_mask, cv2.MORPH_OPEN, kernel)
+        leaf_mask = cv2.morphologyEx(leaf_mask, cv2.MORPH_CLOSE, kernel)
+
+        return leaf_mask, img
 
     def calculate_area(self, mask: np.ndarray, fov_x_deg: float, fov_y_deg: float, camera_height_cm: float):
         """
@@ -67,9 +77,14 @@ class LeafAnalyzer:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+
 # --- Example usage ---
 if __name__ == "__main__":
-    analyzer = LeafAnalyzer(threshold=30)
+    analyzer = LeafAnalyzerHSV(
+        black_hsv_lower=(0, 0, 0),
+        black_hsv_upper=(180, 255, 50)  # adjust upper V for black tolerance
+    )
+
     mask, img = analyzer.segment_leaf("/Users/navjotsingh/Documents/leaf_area_camera_fov/images/leaf.jpg")
     area_result = analyzer.calculate_area(mask, fov_x_deg=60, fov_y_deg=40, camera_height_cm=30)
 
