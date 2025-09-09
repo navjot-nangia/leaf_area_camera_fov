@@ -1,53 +1,48 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator
 
-class LeafSegmenter:
-    def __init__(self, sam_checkpoint: str, model_type: str = "vit_h"):
+class LeafAnalyzer:
+    def __init__(self, threshold: int = 30):
         """
-        Initialize SAM model and predictor.
+        Initialize analyzer with a grayscale threshold.
+        Pixels above this threshold are considered leaf.
         """
-        self.sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-        self.sam.eval()
-        self.predictor = SamPredictor(self.sam)
-        self.mask_generator = SamAutomaticMaskGenerator(self.sam)
+        self.threshold = threshold
 
     def segment_leaf(self, image_path: str):
         """
-        Segment the largest leaf in the image.
-        Returns the leaf mask (boolean array) and original image (RGB).
+        Segment the leaf from a black background using threshold.
+        Returns the mask (boolean array) and original image.
         """
-        img_bgr = cv2.imread(image_path)
-        if img_bgr is None:
+        img = cv2.imread(image_path)
+        if img is None:
             raise ValueError("Image not found or path is incorrect.")
-        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        
-        # Generate all masks
-        masks = self.mask_generator.generate(img_rgb)
-        if not masks:
-            raise ValueError("No masks detected in image.")
-        
-        # Choose the largest mask (assumed leaf)
-        largest_mask = max(masks, key=lambda x: x['area'])['segmentation']
-        return largest_mask, img_rgb
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        _, mask = cv2.threshold(gray, self.threshold, 255, cv2.THRESH_BINARY)
+
+        # Morphology to remove small noise (optional)
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+        return mask, img
 
     def calculate_area(self, mask: np.ndarray, fov_x_deg: float, fov_y_deg: float, camera_height_cm: float):
         """
-        Convert leaf pixel area to real-world area using camera FOV and height.
+        Calculate leaf area in pixels and convert to real-world area using camera FOV.
         """
         leaf_pixels = np.count_nonzero(mask)
-        H, W = mask.shape
-        total_pixels = H * W
-
+        total_pixels = mask.size
         percent_coverage = 100 * leaf_pixels / total_pixels
 
+        # Convert to real-world area
         fov_x_rad = np.deg2rad(fov_x_deg)
         fov_y_rad = np.deg2rad(fov_y_deg)
 
         real_width = 2 * camera_height_cm * np.tan(fov_x_rad / 2)
         real_height = 2 * camera_height_cm * np.tan(fov_y_rad / 2)
-        real_area = real_width * real_height
+        real_area = real_width * real_height  # cm² of full image
 
         cm2_per_pixel = real_area / total_pixels
         leaf_area_cm2 = leaf_pixels * cm2_per_pixel
@@ -58,42 +53,28 @@ class LeafSegmenter:
             "real_leaf_area_cm2": leaf_area_cm2
         }
 
-    def visualize(self, img_rgb: np.ndarray, mask: np.ndarray, overlay_alpha: float = 0.3):
+    def visualize(self, img: np.ndarray, mask: np.ndarray, alpha: float = 0.3):
         """
-        Display the original image with leaf mask overlay.
+        Visualize leaf mask overlay on original image.
         """
-        overlay = img_rgb.copy()
-        overlay[mask] = [0, 255, 0]  # green overlay
-        combined = cv2.addWeighted(img_rgb, 1 - overlay_alpha, overlay, overlay_alpha, 0)
+        overlay = img.copy()
+        overlay[mask == 255] = [0, 255, 0]  # green overlay for leaf
+        combined = cv2.addWeighted(img, 1 - alpha, overlay, alpha, 0)
 
-        plt.figure(figsize=(8,8))
-        plt.imshow(combined)
-        plt.axis('off')
-        plt.show()
+        cv2.imshow("Original Image", img)
+        cv2.imshow("Leaf Mask", mask)
+        cv2.imshow("Leaf Overlay", combined)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
 # --- Example usage ---
 if __name__ == "__main__":
-    # Path to SAM checkpoint
-    checkpoint_path = "sam_vit_h_4b8939.pth"
+    analyzer = LeafAnalyzer(threshold=30)
+    mask, img = analyzer.segment_leaf("/Users/navjotsingh/Documents/leaf_area_camera_fov/images/leaf.jpg")
+    area_result = analyzer.calculate_area(mask, fov_x_deg=60, fov_y_deg=40, camera_height_cm=30)
 
-    # Initialize leaf segmenter
-    segmenter = LeafSegmenter(checkpoint_path)
-
-    # Segment leaf
-    leaf_mask, image_rgb = segmenter.segment_leaf("leaf_2.jpg")
-
-    # Calculate area
-    area_result = segmenter.calculate_area(
-        leaf_mask,
-        fov_x_deg=60,
-        fov_y_deg=40,
-        camera_height_cm=30
-    )
-
-    # Print results
     print("Leaf pixel area:", area_result["pixel_area"])
     print("Leaf covers %.2f%% of image" % area_result["percent_coverage"])
     print("Estimated real leaf area: %.2f cm²" % area_result["real_leaf_area_cm2"])
 
-    # Visualize
-    segmenter.visualize(image_rgb, leaf_mask)
+    analyzer.visualize(img, mask)
