@@ -27,10 +27,18 @@ const elements = {
   resultCanvas: document.querySelector("#result-canvas"),
   qualityTitle: document.querySelector("#quality-title"),
   qualityCopy: document.querySelector("#quality-copy"),
-  adjustButton: document.querySelector("#adjust-button")
+  adjustButton: document.querySelector("#adjust-button"),
+  installPanel: document.querySelector("#install-panel"),
+  installButton: document.querySelector("#install-button"),
+  installHelp: document.querySelector("#install-help"),
+  shareButton: document.querySelector("#share-button"),
+  shareStatus: document.querySelector("#share-status")
 };
 
 const state = { image: null, imageData: null, corners: [], manualMode: false, paperConfidence: 0 };
+let deferredInstallPrompt = null;
+
+setupPwa();
 
 elements.paperSize.addEventListener("change", () => {
   elements.customSize.hidden = elements.paperSize.value !== "custom";
@@ -104,6 +112,53 @@ elements.adjustButton.addEventListener("click", () => {
   elements.analysisCard.scrollIntoView({ behavior: "smooth", block: "start" });
   elements.analysisCard.querySelector("details").open = true;
 });
+
+elements.installButton.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  elements.installButton.hidden = true;
+  elements.installHelp.textContent = choice.outcome === "accepted" ? "Leaf Area was added to your device." : "You can install later from your browser menu.";
+});
+
+elements.shareButton.addEventListener("click", async () => {
+  const shareData = { title: "Leaf Area Camera", text: "Measure a leaf from a photo and a known sheet of paper.", url: window.location.href };
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+      elements.shareStatus.textContent = "Share options opened.";
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      elements.shareStatus.textContent = "App link copied.";
+    }
+  } catch (error) {
+    if (error.name !== "AbortError") elements.shareStatus.textContent = "Use your browser address bar to copy this link.";
+  }
+});
+
+function setupPwa() {
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  if (!standalone) {
+    elements.installPanel.hidden = false;
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIos) elements.installHelp.textContent = "In Safari, tap Share, then choose “Add to Home Screen.”";
+  }
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    elements.installPanel.hidden = false;
+    elements.installButton.hidden = false;
+    elements.installHelp.textContent = "Install Leaf Area for quick access and offline use.";
+  });
+  window.addEventListener("appinstalled", () => {
+    elements.installPanel.hidden = true;
+    deferredInstallPrompt = null;
+  });
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));
+  }
+}
 
 function getPaperDimensions() {
   if (elements.paperSize.value !== "custom") return PAPER_SIZES[elements.paperSize.value];

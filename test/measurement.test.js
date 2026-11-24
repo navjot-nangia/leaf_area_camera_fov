@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import {
   calculateLeafArea,
   largestComponent,
@@ -46,4 +47,15 @@ test("orderCorners returns clockwise order starting at top-left", () => {
   assert.deepEqual(orderCorners(points), [
     { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 20 }, { x: 0, y: 20 }
   ]);
+});
+
+test("PWA manifest references valid local icons", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../dist/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "./");
+  assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
+  assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
+  for (const icon of manifest.icons) {
+    assert.equal(existsSync(new URL(`../dist/${icon.src.replace(/^\.\//, "")}`, import.meta.url)), true);
+  }
 });
