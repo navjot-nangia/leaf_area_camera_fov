@@ -1,2 +1,4 @@
-images
-tools
+.DS_Store
+node_modules/
+coverage/
+*.log

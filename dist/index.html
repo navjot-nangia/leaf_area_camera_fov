@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#173f2a" />
+    <meta name="description" content="Estimate the area of one leaf using a photo and a known sheet of paper." />
+    <title>Leaf Area</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Leaf Area home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M26.7 4.9C15.3 4.2 7.4 8.4 6 17.2c-.5 3.2.6 5.8 2.6 7.5 3.9-6.7 8.2-10.4 13.1-12.7-4.1 3.2-7.7 7.5-10.8 13.4 2.1 1 4.7 1.1 7.3-.2 7.1-3.4 8.9-11.5 8.5-20.3Z"/></svg>
+        </span>
+        <span>Leaf Area</span>
+      </a>
+      <span class="privacy-note">On-device analysis</span>
+    </header>
+
+    <main id="top">
+      <section class="intro">
+        <p class="eyebrow">Simple field measurement</p>
+        <h1>Measure one leaf.<br />No scanner needed.</h1>
+        <p>Place a leaf on a known white sheet, take a photo from above, and get an area estimate in seconds.</p>
+      </section>
+
+      <section class="workflow" aria-label="Leaf measurement">
+        <div class="step-card">
+          <div class="step-heading">
+            <span class="step-number">1</span>
+            <div>
+              <h2>Choose your paper</h2>
+              <p>The known sheet size provides the scale.</p>
+            </div>
+          </div>
+          <label for="paper-size">Paper size</label>
+          <div class="select-wrap">
+            <select id="paper-size">
+              <option value="a4">A4 — 210 × 297 mm</option>
+              <option value="letter">US Letter — 216 × 279 mm</option>
+              <option value="custom">Custom size</option>
+            </select>
+          </div>
+          <div class="custom-size" id="custom-size" hidden>
+            <div><label for="paper-width">Width (mm)</label><input id="paper-width" type="number" min="50" max="1000" step="1" value="210" inputmode="decimal" /></div>
+            <div><label for="paper-height">Height (mm)</label><input id="paper-height" type="number" min="50" max="1000" step="1" value="297" inputmode="decimal" /></div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-heading">
+            <span class="step-number">2</span>
+            <div>
+              <h2>Take a photo</h2>
+              <p>Keep the full sheet visible and photograph it from above.</p>
+            </div>
+          </div>
+          <div class="capture-guide" aria-label="Photo setup illustration">
+            <div class="paper-illustration">
+              <span class="leaf-illustration"></span>
+              <span class="corner corner-one"></span><span class="corner corner-two"></span>
+              <span class="corner corner-three"></span><span class="corner corner-four"></span>
+            </div>
+          </div>
+          <ul class="tips">
+            <li>Use a plain, unmarked white sheet</li>
+            <li>Lay one leaf flat without covering an edge</li>
+            <li>Avoid strong shadows and glare</li>
+          </ul>
+          <label class="primary-button capture-button" for="photo-input">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 7.5 6H5a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V9a3 3 0 0 0-3-3h-2.5L15 4H9Zm3 13a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/></svg>
+            Take or choose photo
+          </label>
+          <input id="photo-input" class="visually-hidden" type="file" accept="image/*" capture="environment" />
+          <p class="local-copy">Your photo stays on this device.</p>
+        </div>
+
+        <div class="step-card analysis-card" id="analysis-card" hidden>
+          <div class="step-heading">
+            <span class="step-number">3</span>
+            <div><h2>Check the paper outline</h2><p id="paper-status">Finding the four corners…</p></div>
+          </div>
+          <div class="canvas-wrap"><canvas id="photo-canvas" aria-label="Photo with detected paper outline"></canvas></div>
+          <p class="corner-instruction" id="corner-instruction" hidden>Tap corners in this order: top-left, top-right, bottom-right, bottom-left.</p>
+          <div class="button-row">
+            <button class="secondary-button" id="manual-corners" type="button">Set corners manually</button>
+            <button class="primary-button" id="measure-button" type="button">Measure leaf</button>
+          </div>
+          <details class="advanced-settings">
+            <summary>Detection sensitivity</summary>
+            <div class="range-row"><span>Less</span><input id="sensitivity" type="range" min="20" max="75" value="52" /><span>More</span></div>
+            <p>Increase this if pale leaf edges are missing. Decrease it if shadows are included.</p>
+          </details>
+        </div>
+
+        <section class="result-card" id="result-card" aria-live="polite" hidden>
+          <p class="result-label">Estimated leaf area</p>
+          <div class="result-value"><span id="area-value">—</span><span>cm²</span></div>
+          <p id="coverage-value">—% of the paper area</p>
+          <div class="result-preview"><canvas id="result-canvas" aria-label="Detected leaf on perspective-corrected paper"></canvas></div>
+          <div class="result-note"><strong id="quality-title">Review the green overlay</strong><span id="quality-copy">Only the leaf should be highlighted.</span></div>
+          <div class="button-row">
+            <button class="secondary-button" id="adjust-button" type="button">Adjust detection</button>
+            <label class="primary-button" for="photo-input">Measure another leaf</label>
+          </div>
+        </section>
+      </section>
+
+      <section class="science-note">
+        <h2>For reliable measurements</h2>
+        <p>This app estimates area from the known paper size. Keep the paper and leaf flat, include all four paper corners, and hold the camera as parallel to the sheet as possible.</p>
+        <p class="validation-note">For research use, validate the workflow against your laboratory leaf-area meter before collecting study data.</p>
+      </section>
+    </main>
+
+    <footer><span>Leaf Area</span><span>Photos are processed locally</span></footer>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
